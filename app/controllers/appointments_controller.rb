@@ -1,24 +1,16 @@
 class AppointmentsController < ApplicationController
-  def index
-    render json: { data: { message: "Nothing to see here yet" }}
-  end
+  require 'set'
 
   def create
+    return ok_response("Error scheduling an appointment, time slot is unavailable") if unavailable?
+
     @appointment = Appointment.create!(clean_params)
-    render json: success_response("Successfully created appointment"), status: :created, location: @appointment
+    success_response("Successfully created appointment", :created)
   rescue StandardError => err
-    Rails.logger("Create apointment failed: #{err}")
+    logger.error("Create apointment failed: #{err}")
     render json: { error: "Appointment not created" }, status: :internal_server_error
   end
 
-  def show
-    render json: { appointment: 'yo' }
-  end
-
-  def update
-    # TODO this is to support updating an appointment, this isn't implemented.
-    render json: success_response("Successfully updated appointment"), status: :ok, location: @appointment
-  end
 
   private
 
@@ -26,8 +18,12 @@ class AppointmentsController < ApplicationController
     params.require(:appointment).permit(:email, :date, :time)
   end
 
-  def success_response(message)
-    { data: { message: message, appointment: @appointment } }
+  def success_response(message, status)
+    render json: { data: { message: message, appointment: @appointment } }, status: status
+  end
+
+  def ok_response(message)
+    render json: { data: { message: message } }, status: :ok
   end
 
   def clean_params
@@ -45,9 +41,9 @@ class AppointmentsController < ApplicationController
 
   def date_parse(date)
     # TODO: this can be handled better, but we'll _trust_ our users for now
-    Time.utc(date)
+    Time.parse(date).utc
   rescue StandardError => err
-    Rails.logger("Invalid date format #{err}")
+    logger.error("Invalid date format #{err}")
     false
   end
 
@@ -61,11 +57,30 @@ class AppointmentsController < ApplicationController
     if minute.to_i.between?(31, 59)
       hour_increment = 1
       minute = 0
+    elsif minute.to_i.between?(1, 29)
+      minute = 30
     end
 
     [hour.to_i + hour_increment, minute.to_i]
   rescue StandardError => err
-    Rails.logger("Invalid time format passed in: #{err}")
+    logger.error("Invalid time format passed in: #{err}")
     false
+  end
+
+  def existing_appointments(email)
+    Appointment.where(email: email)
+  end
+
+  def unavailable_times(appointments)
+    return Set.new if appointments.length.zero?
+
+    Set.new(appointments.map { |appointment| appointment.time_slot.strftime('%Y-%m-%d') } )
+  end
+
+  def unavailable?
+    appointments = existing_appointments(clean_params[:email])
+    target_day = clean_params[:time_slot].strftime('%Y-%m-%d')
+
+    unavailable_times(appointments).include?(target_day)
   end
 end
