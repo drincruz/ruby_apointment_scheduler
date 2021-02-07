@@ -51,6 +51,28 @@ docker-compose run web bundle exec rspec spec
 
 This repo is set up to run the tests on pull requests. See the [Actions tab](https://github.com/drincruz/ruby_appointment_scheduler/actions).
 
+## cURL Examples
+
+### POST to Create an Appointment
+
+```bash
+curl --location --request POST 'localhost:3000/appointments' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "appointment": {
+        "email": "adrian@appointments.com",
+        "date": "2021-02-11",
+        "time": "9:31"
+    }
+}'
+```
+
+### Getting a User's Appointments
+
+```bash
+curl --location --request GET 'localhost:3000/user/appointments?email=adrian@appointments.com'
+```
+
 ## Postman Examples
 
 ### Sending a POST to Create an Appointment
